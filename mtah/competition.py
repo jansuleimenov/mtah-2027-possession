@@ -43,7 +43,13 @@ def load(data_dir=None):
 
     match = Match(games.GAME, ball * [length, width], players * [length, width], team, period,
                   (length, width))
-    match.meta["kickoff"], match.meta["setpieces"] = set_pieces(data_dir)
+    kickoff, match.meta["setpieces"] = set_pieces(data_dir)
+    # A kickoff tag can start a few seconds before the half's first graded frame (the tags open
+    # ~3 s early); clamp it into the half so per-half windows that start there are never empty.
+    for half, start, stop in match.half_runs():
+        if half in kickoff:
+            kickoff[half] = min(max(kickoff[half], start), stop - 1)
+    match.meta["kickoff"] = kickoff
     return match
 
 

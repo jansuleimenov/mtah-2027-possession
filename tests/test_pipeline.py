@@ -28,7 +28,7 @@ def _write_bundle(root, n_slots=4):
             f.write("{}:{};NaN,NaN,NaN:0.5,0.25,0.0\n".format(frame_id, groups))
     with open(os.path.join(folder, "BAR-ATH_tactical_smart_tagging.xml"), "w") as f:
         f.write("<file><ALL_INSTANCES>"
-                "<instance><code>SET PIECES</code><start>447.4</start><end>450</end>"
+                "<instance><code>SET PIECES</code><start>443.88</start><end>450</end>"
                 "<label><group>Type</group><text>Kick Off (Start)</text></label>"
                 "<label><group>Half</group><text>1st Half</text></label></instance>"
                 "<instance><code>SET PIECES</code><start>4549.68</start><end>4552</end>"
@@ -49,8 +49,8 @@ def test_competition_loader_on_synthetic_bundle(tmp_path):
     assert np.isnan(m.ball[11184]).all()                 # no line for that frame
     assert m.period[11185] == 1 and m.period[11184] == 0
     assert m.period[110808] == 2 and m.period[190197] == 2 and m.period[190198] == 0
-    assert m.meta["kickoff"] == {1: 11185, 2: 113742}
-    assert list(m.meta["setpieces"]) == [11185, 113742]
+    assert m.meta["kickoff"] == {1: 11185, 2: 113742}      # 11097 clamped to the half's start
+    assert list(m.meta["setpieces"]) == [11097, 113742]    # raw tags stay unclamped
 
 
 def test_run_path_end_to_end_on_synthetic_bundle(tmp_path):

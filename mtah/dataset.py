@@ -42,16 +42,22 @@ def item(source, game_id, loader, seed):
     """dict(feats DataFrame, frames, labels, half_runs, n_frames) for one degraded game."""
     path = os.path.join(CACHE, "{}_{}_{}_{}.npz".format(source, game_id, seed, _version()))
     if os.path.isfile(path):
-        z = np.load(path, allow_pickle=False)
-        feats = pd.DataFrame(z["x"], columns=list(z["columns"]), index=z["frames"])
-        return dict(feats=feats, frames=z["frames"], labels=z["labels"],
-                    half_runs=[tuple(r) for r in z["half_runs"]], n_frames=int(z["n_frames"]))
+        try:
+            z = np.load(path, allow_pickle=False)
+            feats = pd.DataFrame(z["x"], columns=list(z["columns"]), index=z["frames"])
+            return dict(feats=feats, frames=z["frames"], labels=z["labels"],
+                        half_runs=[tuple(r) for r in z["half_runs"]], n_frames=int(z["n_frames"]))
+        except (EOFError, ValueError, OSError, KeyError):
+            pass  # truncated or half-written cache file: rebuild it below
     m = noise.degrade(loader(), np.random.default_rng(seed))
     feats, frames = features.build(m)
     feats = feats.astype(np.float32)  # same values whether read from cache or freshly built
     os.makedirs(CACHE, exist_ok=True)
-    np.savez_compressed(path, x=feats.to_numpy(np.float32), columns=np.array(feats.columns, dtype=str),
+    # Write then rename, so a second process never reads a half-written file.
+    tmp = "{}.{}.tmp.npz".format(path[:-4], os.getpid())
+    np.savez_compressed(tmp, x=feats.to_numpy(np.float32), columns=np.array(feats.columns, dtype=str),
                         frames=frames, labels=m.labels, half_runs=np.array(m.half_runs()),
                         n_frames=m.n_frames)
+    os.replace(tmp, path)
     return dict(feats=feats, frames=frames, labels=m.labels, half_runs=m.half_runs(),
                 n_frames=m.n_frames)
