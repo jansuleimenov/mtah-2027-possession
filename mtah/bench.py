@@ -96,7 +96,9 @@ def main():
 
     if base:
         line("baseline_smooth50", base)
-    ranked = sorted(scores, key=lambda i: -np.mean([r[0] for v in scores[i].values() for r in v]))
+    # Each source counts equally, so 20 SkillCorner games do not drown out the 3 Metrica ones.
+    ranked = sorted(scores, key=lambda i: -np.mean([np.mean([r[0] for r in v])
+                                                    for v in scores[i].values()]))
     for i in ranked[:12]:
         line(str(grid[i]).replace("DecodeParams", ""), scores[i])
 

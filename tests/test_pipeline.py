@@ -53,6 +53,32 @@ def test_competition_loader_on_synthetic_bundle(tmp_path):
     assert list(m.meta["setpieces"]) == [11185, 113742]
 
 
+def test_run_path_end_to_end_on_synthetic_bundle(tmp_path):
+    """train -> label -> write on the synthetic bundle, with a tiny model so it stays fast."""
+    import pandas as pd
+    from mtah import competition, features, run
+    _write_bundle(str(tmp_path))
+    m = competition.load(str(tmp_path))
+    feats, frames = features.build(m)
+    rng = np.random.default_rng(0)
+    y = np.full(m.n_frames, X, dtype=np.int8)
+    y[frames] = rng.integers(0, 3, len(frames))
+    clf = model.fit([(feats.astype(np.float32), frames)], [y])
+    codes = run.label(m, clf)
+    out = tmp_path / "opengate.csv"
+    run.write(str(out), codes)
+    sub = pd.read_csv(out)
+    assert list(sub.columns) == ["frame", "label"] and len(sub) == 199319
+    assert (sub["frame"] == np.arange(199319)).all()
+    assert set(sub["label"]) <= {"H", "A", "D", "X"}
+    assert (sub["label"].iloc[:11185] == "X").all()
+    assert (sub["label"].iloc[110808:113742] == "D").all()   # before the 2nd-half kickoff tag
+    import possession_metrics as pm
+    assert pm.validate_submission(pm.read_label_csv(str(out)), 199319) is None
+    # positive control: the same validator rejects a file one row short
+    assert pm.validate_submission(pm.read_label_csv(str(out)).iloc[:-1], 199319) is not None
+
+
 def test_viterbi_removes_flicker():
     t = 400
     prob = np.full((t, 3), 0.05)

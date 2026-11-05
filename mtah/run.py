@@ -17,9 +17,10 @@ from mtah.common import D, LABELS
 from mtah import dataset, features, model
 # Chosen on the external leave-one-game-out benchmark (mtah/bench.py --grid). Never tuned on the
 # competition match or its public ground truth.
-# 2026-11-05 sweep (36 combos x 3 folds): best mean spellF1 0.4939 at switch 10, alive<->dead 30
-# in total; switch 5 and 20 both scored lower, so 10 is an interior optimum.
-PARAMS = model.DecodeParams(switch=10, to_dead=10, from_dead=20)
+# 2026-11-05 sweep, 3 folds over 3 Metrica + 20 SkillCorner games, sources weighted equally:
+# best at switch 20 (Metrica 0.5154, SkillCorner 0.5688 spellF1; baseline 0.2589 / 0.2102).
+# switch 10 and 40 both scored lower on the balanced mean, so 20 is an interior optimum.
+PARAMS = model.DecodeParams(switch=20, to_dead=10, from_dead=40)
 
 
 def train():

@@ -50,7 +50,7 @@ def item(source, game_id, loader, seed):
     feats, frames = features.build(m)
     feats = feats.astype(np.float32)  # same values whether read from cache or freshly built
     os.makedirs(CACHE, exist_ok=True)
-    np.savez_compressed(path, x=feats.to_numpy(np.float32), columns=np.array(feats.columns),
+    np.savez_compressed(path, x=feats.to_numpy(np.float32), columns=np.array(feats.columns, dtype=str),
                         frames=frames, labels=m.labels, half_runs=np.array(m.half_runs()),
                         n_frames=m.n_frames)
     return dict(feats=feats, frames=frames, labels=m.labels, half_runs=m.half_runs(),
