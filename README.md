@@ -22,7 +22,8 @@ Python 3.12.
 git clone --recurse-submodules <this repo> && cd <this repo>
 python -m venv .venv && .venv/Scripts/python -m pip install -r requirements.txt   # Windows
 git clone https://github.com/metrica-sports/sample-data external/metrica-sample-data
-git -C external/metrica-sample-data checkout <commit in docs/technical-note.md>
+git -C external/metrica-sample-data checkout e706dd506b360d69d9d123d5b8026e7294b13996
+bash scripts/fetch_skillcorner.sh          # 20 matches, ~1.8 GB, pinned commit
 
 # the competition bundle, unpacked so that <data>/tactical/BAR-ATH_tactical_atd.txt exists
 python -m mtah.run --data <data> --out out/<team>.csv
