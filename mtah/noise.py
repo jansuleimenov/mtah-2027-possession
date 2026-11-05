@@ -31,10 +31,18 @@ class NoiseParams:
     player_missing: float = 0.07        # DATA.md: mean 20.5 of 22 tracked
     player_burst_mean: float = 50.0
     player_jitter: float = 0.2
+    # Simulated Smart Tagging set pieces: automatic, so imperfect. Tags are second-accurate
+    # (DATA.md), miss some restarts and add a few spurious ones.
+    tag_jitter: float = 25.0            # frames, sd
+    tag_miss: float = 0.15
+    tag_false_per_half: float = 3.0
 
 
 def degrade(match, rng, params=NoiseParams()):
-    """A copy of `match` with the ball and players degraded. Labels are left untouched."""
+    """A copy of `match` with the ball, players and set-piece tags degraded. Labels untouched."""
+    meta = dict(match.meta)
+    if "setpieces" in meta:
+        meta["setpieces"] = _degrade_tags(meta["setpieces"], match, rng, params)
     ball = _show_dead_ball(match.ball.copy(), match.labels, rng, params)
     ball = _drop_ball(ball, match.players, match.period > 0, rng, params)
     ball += rng.normal(0, params.ball_jitter, ball.shape)
@@ -44,7 +52,15 @@ def degrade(match, rng, params=NoiseParams()):
     gone = _bursts((t, s), params.player_missing, params.player_burst_mean, rng)
     players[gone] = np.nan
     players += rng.normal(0, params.player_jitter, players.shape)
-    return replace(match, ball=ball, players=players)
+    return replace(match, ball=ball, players=players, meta=meta)
+
+
+def _degrade_tags(frames, match, rng, params):
+    keep = frames[rng.random(len(frames)) >= params.tag_miss]
+    keep = keep + np.round(rng.normal(0, params.tag_jitter, len(keep))).astype(int)
+    false = [rng.integers(start, stop, rng.poisson(params.tag_false_per_half))
+             for _, start, stop in match.half_runs()]
+    return np.sort(np.clip(np.concatenate([keep] + false), 0, match.n_frames - 1))
 
 
 def _show_dead_ball(ball, labels, rng, params):

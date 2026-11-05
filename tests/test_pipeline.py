@@ -50,6 +50,7 @@ def test_competition_loader_on_synthetic_bundle(tmp_path):
     assert m.period[11185] == 1 and m.period[11184] == 0
     assert m.period[110808] == 2 and m.period[190197] == 2 and m.period[190198] == 0
     assert m.meta["kickoff"] == {1: 11185, 2: 113742}
+    assert list(m.meta["setpieces"]) == [11185, 113742]
 
 
 def test_viterbi_removes_flicker():

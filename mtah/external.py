@@ -40,13 +40,25 @@ def load(game):
     path = os.path.join(CACHE, game + ".npz")
     if os.path.isfile(path):
         z = np.load(path)
-        return Match("metrica-" + game, z["ball"], z["players"], z["team"], z["period"], PITCH,
-                     z["labels"])
+        match = Match("metrica-" + game, z["ball"], z["players"], z["team"], z["period"], PITCH,
+                      z["labels"])
+        match.meta["setpieces"] = z["setpieces"]
+        return match
     match = _parse(game)
     os.makedirs(CACHE, exist_ok=True)
     np.savez_compressed(path, ball=match.ball, players=match.players, team=match.team,
-                        period=match.period, labels=match.labels)
+                        period=match.period, labels=match.labels,
+                        setpieces=match.meta["setpieces"])
     return match
+
+
+def setpiece_frames(events):
+    """Frames where a restart is taken: what Smart Tagging's SET PIECES code marks on the target.
+
+    Goal kicks are a PASS subtype in Metrica's CSV games and a SET PIECE in Smart Tagging.
+    """
+    is_sp = (events["type"] == "SET PIECE") | events["subtypes"].map(lambda s: "GOAL KICK" in s)
+    return np.sort(events.loc[is_sp, "start"].to_numpy(int))
 
 
 def _parse(game):
@@ -57,7 +69,7 @@ def _parse(game):
     else:
         raise KeyError("unknown game {!r}; have {}".format(game, GAMES))
     match.labels, match.period = derive_labels(events, match.n_frames)
-    match.meta["events"] = events
+    match.meta["setpieces"] = setpiece_frames(events)
     return match
 
 

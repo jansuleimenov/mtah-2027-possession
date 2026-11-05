@@ -14,9 +14,7 @@ import os
 import numpy as np
 
 from mtah.common import D, LABELS
-from mtah import external, features, model, noise
-
-TRAIN_SEEDS = (1, 2)
+from mtah import dataset, features, model
 # Chosen on the external leave-one-game-out benchmark (mtah/bench.py --grid). Never tuned on the
 # competition match or its public ground truth.
 # 2026-11-05 sweep (36 combos x 3 folds): best mean spellF1 0.4939 at switch 10, alive<->dead 30
@@ -25,18 +23,15 @@ PARAMS = model.DecodeParams(switch=10, to_dead=10, from_dead=20)
 
 
 def train():
-    feats, labels = [], []
-    for game in external.GAMES:
-        clean = external.load(game)
-        for seed in TRAIN_SEEDS:
-            m = noise.degrade(clean, np.random.default_rng(seed))
-            feats.append(features.build(m))
-            labels.append(m.labels)
-    return model.fit(feats, labels)
+    """Fit on every external game (Metrica + SkillCorner), degraded, never on the competition."""
+    items = [dataset.item(s, g, load, seed)
+             for s, g, load in dataset.games() for seed in dataset.seeds(s)]
+    return model.fit([(it["feats"], it["frames"]) for it in items], [it["labels"] for it in items])
 
 
 def label(match, clf, params=PARAMS):
     feats, frames = features.build(match)
+    feats = feats.astype(np.float32)  # the model was trained on float32 features
     codes = model.decode(model.proba(clf, feats), frames, match.half_runs(), match.n_frames, params)
     # Before each half's kickoff (from the automatic Smart Tagging) the ball is not in play.
     for half, start, stop in match.half_runs():

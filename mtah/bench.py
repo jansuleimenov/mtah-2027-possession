@@ -1,8 +1,13 @@
-"""External leaderboard: leave-one-game-out on degraded Metrica games, scored by the official
-possession_metrics.py. This is the only place hyperparameters are chosen.
+"""External leaderboard, scored by the official possession_metrics.py. The only place
+hyperparameters are chosen.
 
-    python -m mtah.bench                 # baseline vs model, default decode params
+Three folds over all external games: fold f holds out one Metrica game and every third
+SkillCorner game; the model trains on the rest. Scores are reported per source, because the two
+sources define "dead ball" slightly differently and the competition's own definition is a third.
+
+    python -m mtah.bench                 # model with the submission's decoder costs
     python -m mtah.bench --grid          # also sweep the decoder costs
+    python -m mtah.bench --baseline      # also score the official baseline
 """
 
 import argparse
@@ -12,15 +17,15 @@ import sys
 
 import numpy as np
 
-from mtah.common import OFFICIAL, D, H, A, X
-from mtah import external, features, model, noise
+from mtah.common import OFFICIAL, X
+from mtah import dataset, model, noise
 import possession_metrics as pm
 
 sys.path.insert(0, os.path.join(OFFICIAL, "starter"))
 from baseline import smooth  # noqa: E402  the official baseline's smoothing, reused as-is
 
-TRAIN_SEEDS = (1, 2)   # two degraded copies of each training game
 TEST_SEED = 100
+N_FOLDS = 3
 
 
 def baseline_codes(match, window=50):
@@ -35,59 +40,65 @@ def baseline_codes(match, window=50):
     return labels
 
 
-def score(gt, pred):
+def spell_f1(gt, pred):
     r = pm.evaluate(gt, pred)
-    return r["spell_f1_mean"], r["macro_f1"], r["n_pred_spells"], r["n_gt_spells"]
+    return r["spell_f1_mean"], r["macro_f1"], r["n_pred_spells"] - r["n_gt_spells"]
 
 
-def folds():
-    """Yield (test_name, test_match_degraded, [(feats, frames)], [labels]) per held-out game."""
-    clean = {g: external.load(g) for g in external.GAMES}
-    for test in external.GAMES:
-        train_feats, train_labels = [], []
-        for g in external.GAMES:
-            if g == test:
-                continue
-            for seed in TRAIN_SEEDS:
-                m = noise.degrade(clean[g], np.random.default_rng(seed))
-                train_feats.append(features.build(m))
-                train_labels.append(m.labels)
-        held = noise.degrade(clean[test], np.random.default_rng(TEST_SEED))
-        yield test, held, train_feats, train_labels
+def fold_of(index_in_source, source):
+    return index_in_source % N_FOLDS
+
+
+def split():
+    """[(test_games, train_games)] per fold, each game as (source, id, loader)."""
+    games = dataset.games()
+    position = {}
+    tagged = []
+    for g in games:
+        position[g[0]] = position.get(g[0], -1) + 1
+        tagged.append((fold_of(position[g[0]], g[0]), g))
+    return [([g for f, g in tagged if f == k], [g for f, g in tagged if f != k])
+            for k in range(N_FOLDS)]
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--grid", action="store_true")
+    parser.add_argument("--baseline", action="store_true")
     args = parser.parse_args()
 
-    grid = [model.DecodeParams()]
+    from mtah.run import PARAMS
+    grid = [PARAMS]
     if args.grid:
-        grid = [model.DecodeParams(s, t, f) for s, t, f in
-                itertools.product((5, 10, 20, 40), (5, 10, 20), (5, 10, 20))]
+        grid += [model.DecodeParams(s, t, f) for s, t, f in
+                 itertools.product((5, 10, 20, 40), (5, 10, 20), (10, 20, 40))]
 
-    results = {i: [] for i in range(len(grid))}
-    base = []
-    for test, held, train_feats, train_labels in folds():
-        graded = held.labels != X
-        print("{}: ball missing on graded {:.1%}".format(test, np.isnan(held.ball[graded, 0]).mean()))
-        base.append(score(held.labels, baseline_codes(held)))
-        clf = model.fit(train_feats, train_labels)
-        feats, frames = features.build(held)
-        prob = model.proba(clf, feats)
-        for i, params in enumerate(grid):
-            pred = model.decode(prob, frames, held.half_runs(), held.n_frames, params)
-            results[i].append(score(held.labels, pred))
-        print("  baseline spellF1 {:.4f} macroF1 {:.4f} spells {}/{}".format(*base[-1]))
-        print("  model    spellF1 {:.4f} macroF1 {:.4f} spells {}/{}".format(*results[0][-1]))
+    scores = {i: {} for i in range(len(grid))}   # i -> source -> [(spell, macro, count_err)]
+    base = {}
+    for k, (test, train) in enumerate(split()):
+        items = [dataset.item(s, g, load, seed) for s, g, load in train for seed in dataset.seeds(s)]
+        clf = model.fit([(it["feats"], it["frames"]) for it in items], [it["labels"] for it in items])
+        for source, game_id, load in test:
+            it = dataset.item(source, game_id, load, TEST_SEED)
+            prob = model.proba(clf, it["feats"])
+            for i, params in enumerate(grid):
+                pred = model.decode(prob, it["frames"], it["half_runs"], it["n_frames"], params)
+                scores[i].setdefault(source, []).append(spell_f1(it["labels"], pred))
+            if args.baseline:
+                m = noise.degrade(load(), np.random.default_rng(TEST_SEED))
+                base.setdefault(source, []).append(spell_f1(m.labels, baseline_codes(m)))
+        print("fold {} done ({} test games)".format(k, len(test)), flush=True)
 
-    print("\nmean over {} folds".format(len(base)))
-    print("  baseline_smooth50  spellF1 {:.4f}  macroF1 {:.4f}".format(
-        np.mean([b[0] for b in base]), np.mean([b[1] for b in base])))
-    ranked = sorted(results, key=lambda i: -np.mean([r[0] for r in results[i]]))
-    for i in ranked[:10]:
-        print("  {}  spellF1 {:.4f}  macroF1 {:.4f}".format(
-            grid[i], np.mean([r[0] for r in results[i]]), np.mean([r[1] for r in results[i]])))
+    def line(name, by_source):
+        parts = ["{} spellF1 {:.4f} macroF1 {:.4f} count err {:+.0f}".format(
+            src, *np.mean(v, axis=0)) for src, v in sorted(by_source.items())]
+        print("  {:<58} {}".format(name, " | ".join(parts)))
+
+    if base:
+        line("baseline_smooth50", base)
+    ranked = sorted(scores, key=lambda i: -np.mean([r[0] for v in scores[i].values() for r in v]))
+    for i in ranked[:12]:
+        line(str(grid[i]).replace("DecodeParams", ""), scores[i])
 
 
 if __name__ == "__main__":

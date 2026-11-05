@@ -83,7 +83,33 @@ def _half_features(match, start, stop, kickoff=0):
         out["ball_speed_%d" % w] = _roll(out["ball_speed"], 2 * w + 1)
     out["t_half"] = (np.arange(stop - start) - kickoff) / (FPS * 60.0)
 
+    # Dead-ball cues: restarts happen at the boundary and with the players standing still.
+    out["d_boundary"] = np.minimum.reduce([held[:, 0], length - held[:, 0],
+                                           held[:, 1], width - held[:, 1]])
+    out["slow_frac"] = np.nanmean(np.where(np.isnan(speed), np.nan, speed < 1.0), axis=1)
+    out["slow_frac"] = _roll(np.nan_to_num(out["slow_frac"]), 25)
+
+    # Smart Tagging SET PIECES: frames to the next restart and since the last one, in this half.
+    tags = np.asarray(match.meta.get("setpieces", []), dtype=int)
+    tags = tags[(tags >= start) & (tags < stop)] - start
+    out["sp_to_next"], out["sp_since"] = _tag_distances(tags, stop - start)
+
     return pd.DataFrame(out, index=np.arange(start, stop))
+
+
+def _tag_distances(tags, n):
+    """(frames until next tag, frames since last tag), both capped at SEEN_CAP."""
+    idx = np.arange(n)
+    nxt = np.full(n, SEEN_CAP, dtype=float)
+    prev = np.full(n, SEEN_CAP, dtype=float)
+    if len(tags):
+        pos = np.searchsorted(tags, idx)
+        has_next = pos < len(tags)
+        nxt[has_next] = tags[pos[has_next]] - idx[has_next]
+        prev_pos = np.searchsorted(tags, idx, side="right") - 1
+        has_prev = prev_pos >= 0
+        prev[has_prev] = idx[has_prev] - tags[prev_pos[has_prev]]
+    return np.minimum(nxt, SEEN_CAP), np.minimum(prev, SEEN_CAP)
 
 
 def _roll(values, window):

@@ -43,16 +43,20 @@ def load(data_dir=None):
 
     match = Match(games.GAME, ball * [length, width], players * [length, width], team, period,
                   (length, width))
-    match.meta["kickoff"] = kickoffs(data_dir)
+    match.meta["kickoff"], match.meta["setpieces"] = set_pieces(data_dir)
     return match
 
 
-def kickoffs(data_dir=None):
-    """{half: video frame} of each half's opening kickoff, from the automatic Smart Tagging."""
-    out = {}
+def set_pieces(data_dir=None):
+    """({half: opening kickoff frame}, sorted start frames of every SET PIECES tag), both from
+    the automatic Smart Tagging."""
+    kickoff, starts = {}, []
     for tag in load_smart_tagging.load(games.GAME, data_dir):
+        if tag["code"].lower() != "set pieces":
+            continue
+        starts.append(tag["start_frame"])
         tags = {k.lower(): (v or "").lower() for k, v in tag["tags"].items()}
-        if tag["code"].lower() == "set pieces" and tags.get("type") == "kick off (start)":
+        if tags.get("type") == "kick off (start)":
             half = 1 if tags.get("half", "").startswith("1") else 2
-            out.setdefault(half, tag["start_frame"])
-    return out
+            kickoff.setdefault(half, tag["start_frame"])
+    return kickoff, np.sort(np.array(starts, dtype=int))
