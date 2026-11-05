@@ -81,8 +81,6 @@ def _half_features(match, start, stop, kickoff=0):
         out["v_all_%d" % w] = _roll(out["v_all"], 2 * w + 1)
         out["d_diff_%d" % w] = _roll(np.clip(out["d_diff"], -15, 15), 2 * w + 1)
         out["ball_speed_%d" % w] = _roll(out["ball_speed"], 2 * w + 1)
-    out["t_half"] = (np.arange(stop - start) - kickoff) / (FPS * 60.0)
-
     # Dead-ball cues: restarts happen at the boundary and with the players standing still.
     out["d_boundary"] = np.minimum.reduce([held[:, 0], length - held[:, 0],
                                            held[:, 1], width - held[:, 1]])

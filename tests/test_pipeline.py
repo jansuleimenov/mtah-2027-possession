@@ -104,6 +104,21 @@ def test_noise_hits_missing_ball_target():
     assert 0.33 < missing < 0.49
 
 
+def test_noise_does_not_invent_speed():
+    """Regression: per-frame jitter once made standing players read as ~7 m/s (2026-11-05)."""
+    t, s = 5000, 22
+    players = np.tile(np.linspace(10, 90, s)[None, :, None], (t, 1, 2))   # nobody moves
+    m = Match("static", np.full((t, 2), 50.0), players,
+              np.r_[np.zeros(11), np.ones(11)].astype(np.int8), np.ones(t, dtype=np.int8),
+              labels=np.full(t, H, dtype=np.int8))
+    out = noise.degrade(m, np.random.default_rng(3))
+    speed = np.linalg.norm(np.diff(out.players, axis=0), axis=2) * 25
+    assert np.nanmedian(speed) < 0.5
+    # positive control: white noise of the same size would fail this
+    white = players + np.random.default_rng(4).normal(0, 0.2, players.shape)
+    assert np.nanmedian(np.linalg.norm(np.diff(white, axis=0), axis=2) * 25) > 3
+
+
 def test_labels_follow_challenge_definition():
     import pandas as pd
     ev = pd.DataFrame([

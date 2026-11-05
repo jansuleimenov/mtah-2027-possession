@@ -20,19 +20,25 @@ from mtah.common import D
 @dataclass
 class NoiseParams:
     ball_missing_target: float = 0.41   # DATA.md: ball absent on 41% of graded frames
-    ball_burst_mean: float = 30.0       # mean dropout length, frames
+    ball_burst_mean: float = 100.0      # mean dropout length, frames: the target loses the ball
+                                        # in long stretches (median 5 s visibility window = 1.0)
     crowd_radius: float = 3.0           # metres; crowded = >= crowd_n players this close
     crowd_n: int = 3
     crowd_boost: float = 3.0            # dropout hazard multiplier in a crowd
     fast_ball: float = 15.0             # m/s; hazard multiplier above this speed (balls in air)
     fast_boost: float = 2.0
     dead_ball_shown: float = 0.6        # share of dead stretches where the ball stays visible
-    ball_jitter: float = 0.3            # metres, sd
+    # Position error is slow drift, not per-frame shake: independent per-frame noise of 0.2 m
+    # reads as ~7 m/s of speed after differencing, which made every training player look like
+    # a sprinter and the real match look like a standstill (v1 bug, found 2026-11-05).
+    ball_jitter: float = 0.3            # metres, sd, drifting over JITTER_STEP frames
     player_missing: float = 0.07        # DATA.md: mean 20.5 of 22 tracked
     player_burst_mean: float = 50.0
     player_jitter: float = 0.2
-    # Simulated Smart Tagging set pieces: automatic, so imperfect. Tags are second-accurate
-    # (DATA.md), miss some restarts and add a few spurious ones.
+    # Simulated Smart Tagging set pieces: automatic, so imperfect. On the target the tag starts
+    # ~3.3 s before the kick (both kickoff tags vs the published kickoff frames); second-accurate
+    # otherwise (DATA.md); some restarts missed, a few spurious ones added.
+    tag_offset: float = -82.0           # frames
     tag_jitter: float = 25.0            # frames, sd
     tag_miss: float = 0.15
     tag_false_per_half: float = 3.0
@@ -45,19 +51,35 @@ def degrade(match, rng, params=NoiseParams()):
         meta["setpieces"] = _degrade_tags(meta["setpieces"], match, rng, params)
     ball = _show_dead_ball(match.ball.copy(), match.labels, rng, params)
     ball = _drop_ball(ball, match.players, match.period > 0, rng, params)
-    ball += rng.normal(0, params.ball_jitter, ball.shape)
+    ball += _drift(ball.shape, params.ball_jitter, rng)
 
     players = match.players.copy()
     t, s, _ = players.shape
     gone = _bursts((t, s), params.player_missing, params.player_burst_mean, rng)
     players[gone] = np.nan
-    players += rng.normal(0, params.player_jitter, players.shape)
+    players += _drift(players.shape, params.player_jitter, rng)
     return replace(match, ball=ball, players=players, meta=meta)
+
+
+JITTER_STEP = 25  # frames between independent drift knots (1 s)
+
+
+def _drift(shape, sd, rng):
+    """Smooth position error: N(0, sd) knots every JITTER_STEP frames, linearly interpolated.
+    Adds at most ~sd*25/JITTER_STEP m/s of apparent speed instead of ~sd*35 m/s."""
+    t = shape[0]
+    n_knots = t // JITTER_STEP + 2
+    knots = rng.normal(0, sd, (n_knots,) + tuple(shape[1:]))
+    pos = np.arange(t) / JITTER_STEP
+    lo = np.floor(pos).astype(int)
+    w = (pos - lo).reshape((t,) + (1,) * (len(shape) - 1))
+    return knots[lo] * (1 - w) + knots[lo + 1] * w
 
 
 def _degrade_tags(frames, match, rng, params):
     keep = frames[rng.random(len(frames)) >= params.tag_miss]
-    keep = keep + np.round(rng.normal(0, params.tag_jitter, len(keep))).astype(int)
+    keep = keep + np.round(params.tag_offset +
+                           rng.normal(0, params.tag_jitter, len(keep))).astype(int)
     false = [rng.integers(start, stop, rng.poisson(params.tag_false_per_half))
              for _, start, stop in match.half_runs()]
     return np.sort(np.clip(np.concatenate([keep] + false), 0, match.n_frames - 1))
