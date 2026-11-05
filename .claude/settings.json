@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "deny": [
+      "Read(C:/mtah-data/**)",
+      "Read(//c/mtah-data/**)",
+      "Read(./out/**)",
+      "Bash(*mtah-data*)",
+      "Bash(*mtah.run*)",
+      "Grep(C:/mtah-data/**)",
+      "Glob(C:/mtah-data/**)"
+    ]
+  }
+}

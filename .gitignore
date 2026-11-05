@@ -1,0 +1,19 @@
+# The competition data is licensed for this competition only and must never be committed.
+data/
+*.mp4
+*_atd.txt
+*_atd.xml
+*_homography.csv
+*_smart_tagging.xml
+
+# Outputs: frame-level labels of the competition match are derived data.
+out/
+*.csv
+!tests/fixtures/*.csv
+
+# External open data is cloned, not vendored; its parse cache is rebuilt on demand.
+external/
+
+.venv/
+__pycache__/
+.pytest_cache/
