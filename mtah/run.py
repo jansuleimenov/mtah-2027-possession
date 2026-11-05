@@ -19,7 +19,9 @@ from mtah import external, features, model, noise
 TRAIN_SEEDS = (1, 2)
 # Chosen on the external leave-one-game-out benchmark (mtah/bench.py --grid). Never tuned on the
 # competition match or its public ground truth.
-PARAMS = model.DecodeParams()
+# 2026-11-05 sweep (36 combos x 3 folds): best mean spellF1 0.4939 at switch 10, alive<->dead 30
+# in total; switch 5 and 20 both scored lower, so 10 is an interior optimum.
+PARAMS = model.DecodeParams(switch=10, to_dead=10, from_dead=20)
 
 
 def train():
