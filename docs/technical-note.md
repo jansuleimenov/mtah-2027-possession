@@ -69,15 +69,16 @@ The external tracking is cleaner than the competition's, and in Metrica's data t
 during almost every stoppage, so a model trained on it would learn that "no ball" means "dead
 ball". We degrade every training game before use:
 
-- ball removed in bursts (mean 1.2 s) until 41% of graded frames have no ball, the rate DATA.md
+- ball removed in bursts (mean 4 s) until 41% of graded frames have no ball, the rate DATA.md
   gives for the competition, with bursts three times likelier in crowds and twice as likely at
   high ball speed;
 - on 60% of stoppages the ball is shown, held at its last position, as a placed ball would be;
-- 7% of player observations removed in bursts, positions jittered;
-- set-piece tags jittered (sd 1 s), 15% dropped, 3 false tags per half.
+- 7% of player observations removed in bursts, positions given a slow drift (sd 0.2 m);
+- set-piece tags moved 3.3 s earlier (as the competition's kickoff tags are) and jittered
+  (sd 1 s), 15% dropped, 3 false tags per half.
 
 A check that this is realistic: the official baseline, run on our degraded external games, scores
-spellF1 0.21–0.26, against its published 0.2433 on the competition match.
+spellF1 0.19–0.24, against its published 0.2433 on the competition match.
 
 ## Tuning
 
@@ -87,10 +88,24 @@ only to check that the output file is well formed.
 
 | | Metrica spellF1 | SkillCorner spellF1 |
 |---|---|---|
-| official baseline (smooth50) | 0.2589 | 0.2102 |
-| our submission | 0.5154 | 0.5688 |
+| official baseline (smooth50), after the noise fix below | 0.2390 | 0.1890 |
+| our submission, after the noise fix | 0.5260 | 0.5961 |
 
 Decoder costs: H↔A 20, alive→dead 10, dead→alive 40, chosen with the two sources weighted equally.
+
+The public five minutes were scored once, after the file was final, as a correctness check:
+spellF1 0.62 (12 possessions against the truth's 17), which confirms frames are aligned and the
+team labels are not swapped. Nothing was chosen or changed on that number.
+
+### A bug the competition data exposed
+
+Our first noise model added independent per-frame jitter to every position. After differencing,
+0.2 m of jitter reads as about 7 m/s, so every training player looked like a sprinter and the
+competition match, with realistic speeds, looked like a standstill: the first file labelled 79%
+of frames as dead ball. A diagnostic that compares feature medians on the competition match with
+the training range (`scripts/diagnose.py`, aggregates only) found it. Position error is now smooth
+drift (knots one second apart, linearly interpolated), and a regression test checks that standing
+players stay standing.
 
 ## Possession rules implemented
 
