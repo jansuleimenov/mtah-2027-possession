@@ -10,9 +10,11 @@ from each team to the ball, player counts near the ball, team speeds and shape, 
 context windows. A gradient-boosted classifier turns them into per-frame H/A/D probabilities,
 and a 3-state Viterbi decoder with switching costs turns those into whole possessions, which is
 what `spellF1` scores. The model is trained only on other matches: Metrica Sports' three open
-sample games, with possession labels derived from their event data and the tracking degraded to
-match the competition ATD (41% missing ball, dropped player tracks, no "ball gone = dead" shortcut).
-Every hyperparameter is chosen on a leave-one-game-out benchmark over those games.
+sample games (labels derived from their event data) and 20 SkillCorner open A-League matches
+(labels from their phases of play), with the tracking degraded to match the competition ATD (41%
+missing ball, dropped player tracks, no "ball gone = dead" shortcut). Every hyperparameter is
+chosen on a three-fold benchmark over those 23 games. The method and results are in
+[docs/technical-note.md](docs/technical-note.md) ([PDF](docs/opengate.pdf)).
 
 ## Reproduce
 
@@ -36,11 +38,14 @@ python vendor/official/evaluation/validate_submission.py out/<team>.csv
 
 | path | what |
 |---|---|
+| `mtah/common.py` | the one in-memory match shape every loader produces |
 | `mtah/external.py` | Metrica open games: loaders and event-to-label derivation |
+| `mtah/skillcorner.py` | SkillCorner open games: loader, phases-of-play labels, 10 → 25 fps |
 | `mtah/noise.py` | degrade clean tracking to look like the competition ATD |
 | `mtah/features.py` | per-frame team-level features |
+| `mtah/dataset.py` | every external game, degraded and featurised, cached on disk |
 | `mtah/model.py` | classifier and Viterbi decoder |
-| `mtah/bench.py` | leave-one-game-out benchmark on the external games (all tuning happens here) |
+| `mtah/bench.py` | three-fold benchmark on the 23 external games (all tuning happens here) |
 | `mtah/competition.py` | load the competition ATD and Smart Tagging |
 | `mtah/run.py` | train on external games, label the competition match, write the CSV |
 | `vendor/official` | the organisers' repository (scorer, frame alignment, loaders), as a submodule |

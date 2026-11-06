@@ -124,4 +124,6 @@ players stay standing.
 
 ## Reproduction
 
-See README.md. One command regenerates the file; it prints the file's sha256.
+Code: https://github.com/jansuleimenov/mtah-2027-possession. Its README lists the steps: install
+the pinned dependencies, fetch the two open datasets at pinned commits, then one command
+regenerates the file and prints its sha256.
