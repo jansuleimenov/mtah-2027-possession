@@ -14,7 +14,7 @@ sample games (labels derived from their event data) and 20 SkillCorner open A-Le
 (labels from their phases of play), with the tracking degraded to match the competition ATD (41%
 missing ball, dropped player tracks, no "ball gone = dead" shortcut). Every hyperparameter is
 chosen on a three-fold benchmark over those 23 games. The method and results are in
-[docs/technical-note.md](docs/technical-note.md) ([PDF](docs/opengate.pdf)).
+[docs/technical-note.md](docs/technical-note.md) ([PDF](docs/Solomon's%20Team.pdf)).
 
 ## Reproduce
 

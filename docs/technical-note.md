@@ -1,6 +1,6 @@
-# opengate: frame-level possession from automatic tracking
+# Solomon's Team: frame-level possession from automatic tracking
 
-More than a Hack 2027, Phase 1. Team opengate.
+More than a Hack 2027, Phase 1. Team Solomon's Team.
 
 ## Approach
 

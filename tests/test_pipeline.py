@@ -65,7 +65,7 @@ def test_run_path_end_to_end_on_synthetic_bundle(tmp_path):
     y[frames] = rng.integers(0, 3, len(frames))
     clf = model.fit([(feats.astype(np.float32), frames)], [y])
     codes = run.label(m, clf)
-    out = tmp_path / "opengate.csv"
+    out = tmp_path / "Solomon's Team.csv"
     run.write(str(out), codes)
     sub = pd.read_csv(out)
     assert list(sub.columns) == ["frame", "label"] and len(sub) == 199319
